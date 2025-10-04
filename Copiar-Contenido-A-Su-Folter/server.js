@@ -1,5 +1,7 @@
 "use strict";
 
+require('dotenv').config();
+
 // Imports
 const express = require("express");
 const session = require("express-session");
@@ -11,21 +13,22 @@ var path = require('path');
 let app = express();
 
 // Globals
-const OKTA_ISSUER_URI = "https://una-infosec.us.auth0.com/"
-const OKTA_CLIENT_ID = "mlIokKRjb5CGf8FbKpDIOKE36e7BjDLA";
-const OKTA_CLIENT_SECRET = "h8KznysLFpC2QHJHwTb_GDE1cnIesddtvURO-Yns_DQEYIJVG33QdeGOa8Bq7aWr";
-const REDIRECT_URI = "http://localhost:3000/dashboard";
+const OKTA_ISSUER_URI = process.env.OKTA_ISSUER_URI;
+const OKTA_CLIENT_ID = process.env.OKTA_CLIENT_ID;
+const OKTA_CLIENT_SECRET = process.env.OKTA_CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI;
 const PORT = process.env.PORT || "3000";
-const SECRET = "hjsadfghjakshdfg87sd8f76s8d7f68s7f632342ug44gg423636346f"; // Dejar el secret así como está.
+const SECRET = process.env.SECRET;
+const BASE_URL = process.env.BASE_URL; // <-- Nueva línea
 
 //  Esto se los dará Okta.
 const config = {
   authRequired: false,
   auth0Logout: true,
   secret: SECRET,
-  baseURL: 'http://localhost:3000',
-  clientID: 'mlIokKRjb5CGf8FbKpDIOKE36e7BjDLA',
-  issuerBaseURL: 'https://una-infosec.us.auth0.com'
+  baseURL: BASE_URL, // <-- Cambiado aquí
+  clientID: OKTA_CLIENT_ID,
+  issuerBaseURL: OKTA_ISSUER_URI
 };
 
 let oidc = new ExpressOIDC({
@@ -33,7 +36,7 @@ let oidc = new ExpressOIDC({
   client_id: OKTA_CLIENT_ID,
   client_secret: OKTA_CLIENT_SECRET,
   redirect_uri: REDIRECT_URI,
-  routes: { callback: { defaultRedirect: "http://localhost:3000/dashboard" } },
+  routes: { callback: { defaultRedirect: BASE_URL + "/dashboard" } }, // <-- Cambiado aquí
   scope: 'openid profile'
 });
 
