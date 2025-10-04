@@ -1,86 +1,59 @@
 "use strict";
 
-require('dotenv').config();
+require("dotenv").config();
 
-// Imports
 const express = require("express");
-const session = require("express-session");
-const ExpressOIDC = require("@okta/oidc-middleware").ExpressOIDC;
-const { auth } = require('express-openid-connect');
-const { requiresAuth } = require('express-openid-connect');
-var cons = require('consolidate');
-var path = require('path');
-let app = express();
+const { auth, requiresAuth } = require("express-openid-connect");
+const cons = require("consolidate");
+const path = require("path");
 
-// Globals
-const OKTA_ISSUER_URI = process.env.OKTA_ISSUER_URI;
-const OKTA_CLIENT_ID = process.env.OKTA_CLIENT_ID;
-const OKTA_CLIENT_SECRET = process.env.OKTA_CLIENT_SECRET;
-const REDIRECT_URI = process.env.REDIRECT_URI;
-const PORT = process.env.PORT || "3000";
-const SECRET = process.env.SECRET;
-const BASE_URL = process.env.BASE_URL; // <-- Nueva línea
+const app = express();
 
-//  Esto se los dará Okta.
-const config = {
-  authRequired: false,
-  auth0Logout: true,
-  secret: SECRET,
-  baseURL: BASE_URL, // <-- Cambiado aquí
-  clientID: OKTA_CLIENT_ID,
-  issuerBaseURL: OKTA_ISSUER_URI
-};
+// ===== Vistas =====
+app.engine("html", cons.swig);
+app.set("views", path.join(__dirname, "views"));
+app.set("view engine", "html");
 
-let oidc = new ExpressOIDC({
-  issuer: OKTA_ISSUER_URI,
-  client_id: OKTA_CLIENT_ID,
-  client_secret: OKTA_CLIENT_SECRET,
-  redirect_uri: REDIRECT_URI,
-  routes: { callback: { defaultRedirect: BASE_URL + "/dashboard" } }, // <-- Cambiado aquí
-  scope: 'openid profile'
+// ===== Archivos estáticos =====
+app.use("/static", express.static(path.join(__dirname, "static")));
+
+// ===== Configuración Auth (Okta) =====
+// Variables en .env:
+// ISSUER_BASE_URL=https://<tu-okta-domain>/oauth2/default
+// BASE_URL=https://auth-una-chat.vercel.app
+// CLIENT_ID=xxx
+// CLIENT_SECRET=xxx
+// SECRET=una_clave_larga_aleatoria
+app.use(
+  auth({
+    authRequired: false,
+    issuerBaseURL: process.env.ISSUER_BASE_URL,
+    baseURL: process.env.BASE_URL,
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    secret: process.env.SECRET,
+    idpLogout: true
+  })
+);
+
+// ===== Rutas =====
+app.get("/", (req, res) => {
+  res.render("index");
 });
 
-// auth router attaches /login, /logout, and /callback routes to the baseURL
-app.use(auth(config));
-
-// MVC View Setup
-app.engine('html', cons.swig)
-app.set('views', path.join(__dirname, 'views'));
-app.set('models', path.join(__dirname, 'models'));
-app.set('view engine', 'html');
-
-// App middleware
-app.use("/static", express.static("static"));
-
-app.use(session({
-  cookie: { httpOnly: true },
-  secret: SECRET
-}));
-
-// App routes
-app.use(oidc.router);
-
-app.get("/",  (req, res) => {
-  res.render("index");  
+app.get("/dashboard", requiresAuth(), (req, res) => {
+  // express-openid-connect guarda info del usuario en req.oidc.user
+  const userInfo = req.oidc?.user || null;
+  res.render("dashboard", { user: userInfo });
 });
 
-app.get("/dashboard", requiresAuth() ,(req, res) => {  
-  // if(req.oidc.isAuthenticated())
-  // {
-    var payload = Buffer.from(req.appSession.id_token.split('.')[1], 'base64').toString('utf-8');
-    const userInfo = JSON.parse(payload);
-    res.render("dashboard", { user: userInfo });
-  //}
-});
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+     console.log(`Servidor iniciado en ${process.env.BASE_URL} (puerto ${PORT})`);
 
-const openIdClient = require('openid-client');
-openIdClient.Issuer.defaultHttpOptions.timeout = 20000;
+   });
+ }
 
-oidc.on("ready", () => {
-  console.log("Server running on port: " + PORT);
-  app.listen(parseInt(PORT));
-});
-
-oidc.on("error", err => {
-  console.error(err);
-});
+// ===== Exportar para Vercel =====
+module.exports = app;
